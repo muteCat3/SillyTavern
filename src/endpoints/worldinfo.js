@@ -38,6 +38,14 @@ export function readWorldInfoFile(directories, worldInfoName, allowDummy) {
 
 function getJustinWorldInfoPath(request, worldInfoName = 'justin_lorebook') {
     const filename = sanitize(`${worldInfoName}.json`);
+    const explicitPath = process.env.JUSTIN_WORLDINFO_PATH || process.env.LOREBOOK_PATH;
+    if (explicitPath) {
+        return {
+            filename: path.parse(explicitPath).name || filename,
+            pathToWorldInfo: explicitPath,
+        };
+    }
+
     const directories = request.user?.directories ?? getUserDirectories(DEFAULT_USER.handle);
     return {
         filename,
