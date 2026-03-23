@@ -213,10 +213,12 @@ router.post('/edit', (request, response) => {
 
 router.post('/sync-justin', (request, response) => {
     try {
+        console.log('Justin sync request received');
         const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
         if (expectedApiKey) {
             const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
             if (suppliedApiKey !== expectedApiKey) {
+                console.warn('Justin sync rejected: invalid API key');
                 return response.status(401).json({ ok: false, error: 'Invalid API key' });
             }
         }
@@ -240,19 +242,23 @@ router.post('/sync-justin', (request, response) => {
         }
 
         const { filename, pathToWorldInfo } = getJustinWorldInfoPath(request, worldName);
+        console.log(`Justin sync target resolved: ${pathToWorldInfo}`);
 
         if (!fs.existsSync(pathToWorldInfo)) {
+            console.warn(`Justin sync failed: world info file missing at ${pathToWorldInfo}`);
             return response.status(404).json({ ok: false, error: `World info file ${filename} doesn't exist.` });
         }
 
         const worldInfo = JSON.parse(fs.readFileSync(pathToWorldInfo, 'utf8'));
         if (!worldInfo || !_.isPlainObject(worldInfo.entries)) {
+            console.warn(`Justin sync failed: invalid world info structure at ${pathToWorldInfo}`);
             return response.status(400).json({ ok: false, error: 'World info must contain an entries object' });
         }
 
         const { updatedUid0, updatedUid34 } = updateJustinEntries(worldInfo, behavioralString, stateSummary);
 
         if (!updatedUid0 && !updatedUid34) {
+            console.warn('Justin sync failed: no matching UID 0 / UID 34 entries found');
             return response.status(404).json({
                 ok: false,
                 error: 'No matching UID 0 / UID 34 entries found in world info',
@@ -260,6 +266,7 @@ router.post('/sync-justin', (request, response) => {
         }
 
         writeFileAtomicSync(pathToWorldInfo, JSON.stringify(worldInfo, null, 2));
+        console.log(`Justin sync wrote world info: uid0=${updatedUid0}, uid34=${updatedUid34}`);
 
         return response.json({
             ok: true,
@@ -270,7 +277,7 @@ router.post('/sync-justin', (request, response) => {
             state_summary: stateSummary,
         });
     } catch (error) {
-        console.error('Justin sync failed:', error);
+        console.error('Justin sync failed:', error?.stack || error);
         return response.status(500).json({ ok: false, error: 'Justin sync failed' });
     }
 });
