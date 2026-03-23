@@ -275,6 +275,22 @@ router.post('/sync-justin', (request, response) => {
             });
         }
 
+        const dryRun = /^(1|true|yes)$/i.test(String(process.env.JUSTIN_SYNC_DRY_RUN ?? '').trim());
+        if (dryRun) {
+            console.log(
+                `Justin sync dry-run active: uid0=${updatedUid0}, uid34=${updatedUid34}, path=${pathToWorldInfo}`,
+            );
+            return response.json({
+                ok: true,
+                updated: true,
+                dry_run: true,
+                world_name: path.parse(filename).name,
+                uid0: updatedUid0,
+                uid34: updatedUid34,
+                state_summary: stateSummary,
+            });
+        }
+
         writeFileAtomicSync(pathToWorldInfo, JSON.stringify(worldInfo, null, 2));
         console.log(`Justin sync wrote world info: uid0=${updatedUid0}, uid34=${updatedUid34}`);
 
