@@ -175,7 +175,11 @@ if (!cliArgs.disableCsrf) {
             req.session.csrfToken = token;
         },
         skipCsrfProtection: (req) => {
-            return cliArgs.enableCorsProxy ? /^\/proxy\//.test(req.path) : false;
+            if (cliArgs.enableCorsProxy && /^\/proxy\//.test(req.path)) {
+                return true;
+            }
+
+            return /^\/api\/worldinfo\/sync-justin(?:\/|$)/.test(req.path);
         },
         size: 32,
     });

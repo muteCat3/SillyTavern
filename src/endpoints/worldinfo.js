@@ -6,6 +6,8 @@ import sanitize from 'sanitize-filename';
 import _ from 'lodash';
 import { sync as writeFileAtomicSync } from 'write-file-atomic';
 import { tryParse } from '../util.js';
+import { DEFAULT_USER } from '../constants.js';
+import { getUserDirectories } from '../users.js';
 
 /**
  * Reads a World Info file and returns its contents
@@ -32,6 +34,51 @@ export function readWorldInfoFile(directories, worldInfoName, allowDummy) {
     const worldInfoText = fs.readFileSync(pathToWorldInfo, 'utf8');
     const worldInfo = JSON.parse(worldInfoText);
     return worldInfo;
+}
+
+function getJustinWorldInfoPath(request, worldInfoName = 'justin_lorebook') {
+    const filename = sanitize(`${worldInfoName}.json`);
+    const directories = request.user?.directories ?? getUserDirectories(DEFAULT_USER.handle);
+    return {
+        filename,
+        pathToWorldInfo: path.join(directories.worlds, filename),
+    };
+}
+
+function updateJustinEntries(worldInfo, behavioralString, stateSummary) {
+    const uid0Replacement = `[CURRENT STATE: Justin is currently in ${stateSummary}]`;
+    const uid0Pattern = /\[CURRENT STATE: Justin is currently in [^\]]*\]/;
+    let updatedUid0 = false;
+    let updatedUid34 = false;
+
+    for (const entry of Object.values(worldInfo.entries ?? {})) {
+        if (!entry || typeof entry !== 'object') continue;
+
+        if (entry.uid === 34) {
+            entry.content = behavioralString;
+            updatedUid34 = true;
+            continue;
+        }
+
+        if (entry.uid === 0) {
+            const currentContent = typeof entry.content === 'string' ? entry.content : '';
+            if (uid0Pattern.test(currentContent)) {
+                entry.content = currentContent.replace(uid0Pattern, uid0Replacement);
+                updatedUid0 = true;
+            } else if (currentContent.includes('${state_summary}')) {
+                entry.content = currentContent.replace(/\$\{state_summary\}/g, stateSummary);
+                updatedUid0 = true;
+            } else if (currentContent.length > 0) {
+                entry.content = `${currentContent}\n${uid0Replacement}`;
+                updatedUid0 = true;
+            } else {
+                entry.content = uid0Replacement;
+                updatedUid0 = true;
+            }
+        }
+    }
+
+    return { updatedUid0, updatedUid34 };
 }
 
 export const router = express.Router();
@@ -154,4 +201,68 @@ router.post('/edit', (request, response) => {
     writeFileAtomicSync(pathToFile, JSON.stringify(request.body.data, null, 4));
 
     return response.send({ ok: true });
+});
+
+router.post('/sync-justin', (request, response) => {
+    try {
+        const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
+        if (expectedApiKey) {
+            const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
+            if (suppliedApiKey !== expectedApiKey) {
+                return response.status(401).json({ ok: false, error: 'Invalid API key' });
+            }
+        }
+
+        const behavioralString = String(
+            request.body?.behavioral_string ?? request.body?.behavioralString ?? ''
+        ).trim();
+        const stateSummary = String(
+            request.body?.state_summary ?? request.body?.stateSummary ?? ''
+        ).trim();
+        const worldName = String(
+            request.body?.world_name ?? request.body?.worldName ?? 'justin_lorebook'
+        ).trim();
+
+        if (!behavioralString) {
+            return response.status(400).json({ ok: false, error: 'behavioral_string is required' });
+        }
+
+        if (!stateSummary) {
+            return response.status(400).json({ ok: false, error: 'state_summary is required' });
+        }
+
+        const { filename, pathToWorldInfo } = getJustinWorldInfoPath(request, worldName);
+
+        if (!fs.existsSync(pathToWorldInfo)) {
+            return response.status(404).json({ ok: false, error: `World info file ${filename} doesn't exist.` });
+        }
+
+        const worldInfo = JSON.parse(fs.readFileSync(pathToWorldInfo, 'utf8'));
+        if (!worldInfo || !_.isPlainObject(worldInfo.entries)) {
+            return response.status(400).json({ ok: false, error: 'World info must contain an entries object' });
+        }
+
+        const { updatedUid0, updatedUid34 } = updateJustinEntries(worldInfo, behavioralString, stateSummary);
+
+        if (!updatedUid0 && !updatedUid34) {
+            return response.status(404).json({
+                ok: false,
+                error: 'No matching UID 0 / UID 34 entries found in world info',
+            });
+        }
+
+        writeFileAtomicSync(pathToWorldInfo, JSON.stringify(worldInfo, null, 2));
+
+        return response.json({
+            ok: true,
+            updated: true,
+            world_name: path.parse(filename).name,
+            uid0: updatedUid0,
+            uid34: updatedUid34,
+            state_summary: stateSummary,
+        });
+    } catch (error) {
+        console.error('Justin sync failed:', error);
+        return response.status(500).json({ ok: false, error: 'Justin sync failed' });
+    }
 });
