@@ -128,6 +128,10 @@
         "type": "world"
     },
     {
+        "filename": "justin_lorebook.json",
+        "type": "world"
+    },
+    {
         "filename": "user-default.png",
         "type": "avatar"
     },
