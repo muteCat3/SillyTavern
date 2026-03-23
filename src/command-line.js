@@ -51,12 +51,14 @@ export class CommandLineParser {
      */
     getDefaultConfig(isGlobal) {
         const appPaths = envPaths('SillyTavern', { suffix: '' });
+        const railwayPort = Number.parseInt(process.env.PORT ?? '', 10);
+        const defaultPort = Number.isFinite(railwayPort) && railwayPort > 0 ? railwayPort : 8000;
         const configPath = isGlobal ? path.join(appPaths.data, 'config.yaml') : './config.yaml';
         const dataPath = isGlobal ? path.join(appPaths.data, 'data') : './data';
         return Object.freeze({
             configPath: configPath,
             dataRoot: dataPath,
-            port: 8000,
+            port: defaultPort,
             listen: false,
             listenAddressIPv6: '[::]',
             listenAddressIPv4: '0.0.0.0',
