@@ -906,6 +906,15 @@ export async function setUserDataMiddleware(request, response, next) {
  * @param {import('express').NextFunction} next Next function
  */
 export function requireLoginMiddleware(request, response, next) {
+    const isJustinSyncRoute = /^\/api\/worldinfo\/sync-justin(?:\/|$)/.test(request.path);
+    if (isJustinSyncRoute) {
+        const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
+        const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
+        if (expectedApiKey && suppliedApiKey === expectedApiKey) {
+            return next();
+        }
+    }
+
     if (!request.user) {
         return response.sendStatus(403);
     }
