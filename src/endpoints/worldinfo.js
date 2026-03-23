@@ -223,6 +223,16 @@ router.post('/sync-justin', (request, response) => {
             }
         }
 
+        const smokeMode = /^(1|true|yes)$/i.test(String(process.env.JUSTIN_SYNC_SMOKE ?? '').trim());
+        if (smokeMode) {
+            console.log('Justin sync smoke mode active');
+            return response.status(200).json({
+                ok: true,
+                smoke: true,
+                route: '/api/worldinfo/sync-justin',
+            });
+        }
+
         const behavioralString = String(
             request.body?.behavioral_string ?? request.body?.behavioralString ?? ''
         ).trim();
