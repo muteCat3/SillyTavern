@@ -178,8 +178,8 @@ if (!cliArgs.disableCsrf) {
             if (cliArgs.enableCorsProxy && /^\/proxy\//.test(req.path)) {
                 return true;
             }
-
-            return /^\/api\/worldinfo\/sync-justin(?:\/|$)/.test(req.path);
+            return /^\/api\/worldinfo\/(sync-justin|read-justin)(?:\/|$)/.test(req.path) ||
+                   /^\/api\/characters\/read-justin(?:\/|$)/.test(req.path);
         },
         size: 32,
     });

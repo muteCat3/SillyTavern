@@ -307,3 +307,32 @@ router.post('/sync-justin', (request, response) => {
         return response.status(500).json({ ok: false, error: 'Justin sync failed' });
     }
 });
+
+router.post('/read-justin', (request, response) => {
+    try {
+        const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
+        if (expectedApiKey) {
+            const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
+            if (suppliedApiKey !== expectedApiKey) {
+                console.warn('Justin lorebook read rejected: invalid API key');
+                return response.status(401).json({ ok: false, error: 'Invalid API key' });
+            }
+        }
+
+        const worldName = String(
+            request.body?.world_name ?? request.body?.worldName ?? 'justin_lorebook'
+        ).trim();
+        const { pathToWorldInfo } = getJustinWorldInfoPath(request, worldName);
+
+        if (!fs.existsSync(pathToWorldInfo)) {
+            return response.status(404).json({ ok: false, error: `World info file not found: ${worldName}` });
+        }
+
+        const worldInfo = JSON.parse(fs.readFileSync(pathToWorldInfo, 'utf8'));
+        console.log(`Justin lorebook read: ${Object.keys(worldInfo.entries ?? {}).length} entries served`);
+        return response.json({ ok: true, entries: worldInfo.entries ?? {} });
+    } catch (error) {
+        console.error('Justin lorebook read failed:', error?.stack || error);
+        return response.status(500).json({ ok: false, error: 'Failed to read lorebook' });
+    }
+});

@@ -12,7 +12,7 @@ import mime from 'mime-types';
 import { Jimp, JimpMime } from '../jimp.js';
 import storage from 'node-persist';
 
-import { AVATAR_WIDTH, AVATAR_HEIGHT, DEFAULT_AVATAR_PATH } from '../constants.js';
+import { AVATAR_WIDTH, AVATAR_HEIGHT, DEFAULT_AVATAR_PATH, DEFAULT_USER } from '../constants.js';
 import { default as validateAvatarUrlMiddleware, getFileNameValidationFunction } from '../middleware/validateFileName.js';
 import { deepMerge, humanizedDateTime, tryParse, MemoryLimitedMap, getConfigValue, mutateJsonString, clientRelativePath, getUniqueName, sanitizeSafeCharacterReplacements } from '../util.js';
 import { TavernCardValidator } from '../validator/TavernCardValidator.js';
@@ -1539,5 +1539,52 @@ router.post('/export', validateAvatarUrlMiddleware, async function (request, res
     } catch (err) {
         console.error('Character export failed', err);
         response.sendStatus(500);
+    }
+});
+
+router.post('/read-justin', async (request, response) => {
+    try {
+        const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
+        if (expectedApiKey) {
+            const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
+            if (suppliedApiKey !== expectedApiKey) {
+                console.warn('Justin character read rejected: invalid API key');
+                return response.status(401).json({ ok: false, error: 'Invalid API key' });
+            }
+        }
+
+        const avatarUrl = String(
+            process.env.JUSTIN_CHARACTER_AVATAR ?? request.body?.avatar_url ?? ''
+        ).trim();
+
+        if (!avatarUrl) {
+            return response.status(400).json({ ok: false, error: 'avatar_url required or set JUSTIN_CHARACTER_AVATAR env var' });
+        }
+
+        const directories = request.user?.directories ?? getUserDirectories(DEFAULT_USER.handle);
+        const filePath = path.join(directories.characters, avatarUrl);
+
+        if (!fs.existsSync(filePath)) {
+            return response.status(404).json({ ok: false, error: `Character file not found: ${avatarUrl}` });
+        }
+
+        const data = await processCharacter(avatarUrl, directories, { shallow: false });
+        if (!data) {
+            return response.status(404).json({ ok: false, error: `Character not found: ${avatarUrl}` });
+        }
+
+        console.log(`Justin character read: "${data.name}" served`);
+        return response.json({
+            ok: true,
+            name: data.name,
+            description: data.description ?? '',
+            personality: data.personality ?? '',
+            scenario: data.scenario ?? '',
+            first_mes: data.first_mes ?? '',
+            mes_example: data.mes_example ?? '',
+        });
+    } catch (error) {
+        console.error('Justin character read failed:', error?.stack || error);
+        return response.status(500).json({ ok: false, error: 'Failed to read character card' });
     }
 });
