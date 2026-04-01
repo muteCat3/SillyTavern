@@ -906,8 +906,9 @@ export async function setUserDataMiddleware(request, response, next) {
  * @param {import('express').NextFunction} next Next function
  */
 export function requireLoginMiddleware(request, response, next) {
-    const isJustinSyncRoute = /^\/api\/worldinfo\/sync-justin(?:\/|$)/.test(request.path);
-    if (isJustinSyncRoute) {
+    const isJustinRoute = /^\/api\/worldinfo\/(sync-justin|read-justin)(?:\/|$)/.test(request.path) ||
+        /^\/api\/characters\/read-justin(?:\/|$)/.test(request.path);
+    if (isJustinRoute) {
         const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
         const suppliedApiKey = String(request.headers['x-api-key'] ?? '').trim();
         if (expectedApiKey && suppliedApiKey === expectedApiKey) {
