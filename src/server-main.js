@@ -130,7 +130,18 @@ if (corsEnabled) {
 }
 
 if (cliArgs.listen && cliArgs.basicAuthMode) {
-    app.use(basicAuthMiddleware);
+    app.use((req, res, next) => {
+        const isJustinRoute = /^\/api\/worldinfo\/(sync-justin|read-justin)(?:\/|$)/.test(req.path) ||
+            /^\/api\/characters\/read-justin(?:\/|$)/.test(req.path);
+        if (isJustinRoute) {
+            const expectedApiKey = String(process.env.SILLYTAVERN_API_KEY ?? '').trim();
+            const suppliedApiKey = String(req.headers['x-api-key'] ?? '').trim();
+            if (expectedApiKey && suppliedApiKey === expectedApiKey) {
+                return next();
+            }
+        }
+        return basicAuthMiddleware(req, res, next);
+    });
 }
 
 if (cliArgs.whitelistMode) {
